@@ -112,6 +112,26 @@ last["updatedAt"] = datetime.datetime.utcnow().isoformat(timespec="seconds") + "
 if any(last["byma"].values()):
     save(D / "last.json", last)
 
+
+def yahoo(sym, p1, p2):
+    j = get(f"https://query1.finance.yahoo.com/v8/finance/chart/{sym}?period1={p1}&period2={p2}&interval=1d&events=split", tries=2, timeout=25)
+    res = (j.get("chart") or {}).get("result") or []
+    if not res:
+        raise RuntimeError("sin datos: " + str((j.get("chart") or {}).get("error"))[:200])
+    ts = res[0].get("timestamp") or []
+    closes = ((res[0].get("indicators") or {}).get("quote") or [{}])[0].get("close") or []
+    tz = (res[0].get("meta") or {}).get("gmtoffset") or -18000
+    out = {}
+    for t, c in zip(ts, closes):
+        if c is None:
+            continue
+        out[datetime.datetime.utcfromtimestamp(t + tz).strftime("%Y-%m-%d")] = round(float(c), 4)
+    return out
+
+
+P1 = int(datetime.datetime.strptime(DESDE, "%Y-%m-%d").timestamp())
+P2 = int(time.time()) + 86400
+
 # ---------- 2. Historial diario BYMA de los tickers de la lista ----------
 alllive = {}
 for kind, m in last["byma"].items():
@@ -141,7 +161,18 @@ for kind, syms in cfg.get("byma", {}).items():
                 fechas = sorted(norm_date(pick(r, "date")) or "" for r in rows)
                 status["ok"].append(f"hist {sym}: {len(rows)} ruedas en la fuente ({fechas[0]} a {fechas[-1]}), {len(cur)} guardadas (+{len(cur) - n0})")
             else:
-                status["errors"].append(f"hist {sym}: la fuente no devolvió ruedas ({str(rows)[:160]})")
+                status["errors"].append(f"hist {sym}: data912 no tiene historial ({str(rows)[:80]})")
+            # respaldo: Yahoo Finance tiene los CEDEARs y bonos de BYMA como <TICKER>.BA (completa lo que falte, no pisa data912)
+            if not (isinstance(rows, list) and len(rows) > 300) and time.time() - T0 < BUDGET:
+                try:
+                    yb = yahoo(sym + ".BA", P1, P2)
+                    n1 = len(cur)
+                    for d, c in yb.items():
+                        if d >= DESDE and d not in cur and c > 0:
+                            cur[d] = c
+                    status["ok"].append(f"hist {sym}: Yahoo {sym}.BA {len(yb)} ruedas (+{len(cur) - n1})")
+                except Exception as e:
+                    status["errors"].append(f"hist {sym}: Yahoo {sym}.BA tampoco ({str(e)[:120]})")
         # el último precio en vivo también suma al historial (así crece aunque no haya endpoint histórico)
         lv = alllive.get(sym)
         if lv and today.weekday() < 5:
@@ -153,24 +184,12 @@ for kind, syms in cfg.get("byma", {}).items():
         time.sleep(0.7)
 
 # ---------- 3. EE.UU. (Yahoo Finance) ----------
-p1 = int(datetime.datetime.strptime(DESDE, "%Y-%m-%d").timestamp())
-p2 = int(time.time()) + 86400
 for sym in cfg.get("usa", []):
     path = D / "us" / f"{sym}.json"
     cur = load(path, {})
     try:
-        j = get(f"https://query1.finance.yahoo.com/v8/finance/chart/{sym}?period1={p1}&period2={p2}&interval=1d&events=split")
-        res = (j.get("chart") or {}).get("result") or []
-        if not res:
-            raise RuntimeError("sin datos: " + str((j.get("chart") or {}).get("error"))[:200])
-        ts = res[0].get("timestamp") or []
-        closes = ((res[0].get("indicators") or {}).get("quote") or [{}])[0].get("close") or []
         n0 = len(cur)
-        for t, c in zip(ts, closes):
-            if c is None:
-                continue
-            d = (datetime.datetime.utcfromtimestamp(t) - datetime.timedelta(hours=5)).strftime("%Y-%m-%d")
-            cur[d] = round(float(c), 4)
+        cur.update(yahoo(sym, P1, P2))
         save(path, cur)
         status["ok"].append(f"us {sym}: {len(cur)} (+{len(cur) - n0})")
     except Exception as e:
