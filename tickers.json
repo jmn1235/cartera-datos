@@ -1,0 +1,10 @@
+{
+  "_nota": "Tickers que la tarea mantiene con historial completo. byma: símbolo de BYMA y tipo (cedears, stocks, bonds). usa: acciones y ETF de EE.UU. (incluye los benchmarks). Desde: primera fecha a guardar.",
+  "desde": "2023-06-01",
+  "byma": {
+    "cedears": ["AAPL", "AMGN", "AMZN", "B", "BABA", "BKNG", "BRKB", "DIS", "DISN", "EWZ", "GDX", "GLD", "GOOGL", "IEMG", "ISRG", "JD", "JNJ", "JPM", "KO", "MELI", "META", "MU", "NVDA", "QQQ", "QQQC", "RBLX", "RIO", "RIOD", "SONY", "SPGI", "SPY", "V", "VIST", "VST", "XLU"],
+    "stocks": ["GGAL", "YPFD"],
+    "bonds": ["AL30", "BPOB8", "GD35", "GD35D", "PN36O", "TX24"]
+  },
+  "usa": ["SPY", "ACWI", "AGG", "GLD", "SQM", "CGNX", "DRAM", "NASA", "ALTM"]
+}
