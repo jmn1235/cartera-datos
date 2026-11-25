@@ -13,8 +13,8 @@ Salida:
 - data/fx.json            {"mep": {...}, "ccl": {...}} valores de venta por fecha
 - data/status.json        qué se bajó, qué falló y cuándo
 """
-import json, os, sys, time, datetime, warnings
-warnings.filterwarnings('ignore', category=DeprecationWarning), urllib.request, urllib.error, pathlib
+import json, os, sys, time, datetime, warnings, urllib.request, urllib.error, pathlib
+warnings.filterwarnings('ignore', category=DeprecationWarning)
 
 R = pathlib.Path(__file__).resolve().parent.parent
 D = R / "data"
