@@ -13,7 +13,8 @@ Salida:
 - data/fx.json            {"mep": {...}, "ccl": {...}} valores de venta por fecha
 - data/status.json        qué se bajó, qué falló y cuándo
 """
-import json, os, sys, time, datetime, urllib.request, urllib.error, pathlib
+import json, os, sys, time, datetime, warnings
+warnings.filterwarnings('ignore', category=DeprecationWarning), urllib.request, urllib.error, pathlib
 
 R = pathlib.Path(__file__).resolve().parent.parent
 D = R / "data"
@@ -108,30 +109,45 @@ if any(last["byma"].values()):
     save(D / "last.json", last)
 
 # ---------- 2. Historial diario BYMA de los tickers de la lista ----------
+alllive = {}
+for kind, m in last["byma"].items():
+    for sym, v in m.items():
+        alllive.setdefault(sym, v)
+HIST_KINDS = {"cedears", "stocks", "bonds"}
 for kind, syms in cfg.get("byma", {}).items():
     for sym in syms:
         path = D / "hist" / f"{sym}.json"
         cur = load(path, {})
-        try:
-            rows = get(f"https://data912.com/historical/{kind}/{sym}")
-            if sym == syms[0]:
-                status["samples"]["hist_" + kind] = rows[:2] if isinstance(rows, list) else str(rows)[:300]
-            n0 = len(cur)
-            for r in rows if isinstance(rows, list) else []:
-                d = norm_date(pick(r, "date", "fecha", "d"))
-                c = num(pick(r, "c", "close", "cierre"))
-                if d and c and c > 0 and d >= DESDE:
-                    cur[d] = c
-            status["ok"].append(f"hist {sym}: {len(cur)} (+{len(cur) - n0})")
-        except Exception as e:
-            status["errors"].append(f"hist {sym}: {e}")
-        # el último precio en vivo también suma al historial (por si el endpoint histórico viene atrasado)
-        lv = last["byma"].get(kind, {}).get(sym)
+        n0 = len(cur)
+        if kind in HIST_KINDS:
+            rows = None
+            for intento in range(3):
+                try:
+                    rows = get(f"https://data912.com/historical/{kind}/{sym}")
+                except Exception as e:
+                    rows = e
+                if isinstance(rows, list) and rows:
+                    break
+                time.sleep(3 * (intento + 1))
+            if isinstance(rows, list) and rows:
+                for r in rows:
+                    d = norm_date(pick(r, "date", "fecha", "d"))
+                    c = num(pick(r, "c", "close", "cierre"))
+                    if d and c and c > 0 and d >= DESDE:
+                        cur[d] = c
+                fechas = sorted(norm_date(pick(r, "date")) or "" for r in rows)
+                status["ok"].append(f"hist {sym}: {len(rows)} ruedas en la fuente ({fechas[0]} a {fechas[-1]}), {len(cur)} guardadas (+{len(cur) - n0})")
+            else:
+                status["errors"].append(f"hist {sym}: la fuente no devolvió ruedas ({str(rows)[:160]})")
+        # el último precio en vivo también suma al historial (así crece aunque no haya endpoint histórico)
+        lv = alllive.get(sym)
         if lv and today.weekday() < 5:
-            cur.setdefault(TODAY, lv[0])
+            cur[TODAY] = lv[0]
+        elif not lv:
+            status["errors"].append(f"live {sym}: no figura en los paneles de BYMA de data912")
         if cur:
             save(path, cur)
-        time.sleep(0.6)
+        time.sleep(1.0)
 
 # ---------- 3. EE.UU. (Yahoo Finance) ----------
 p1 = int(datetime.datetime.strptime(DESDE, "%Y-%m-%d").timestamp())
