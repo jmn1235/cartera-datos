@@ -22,12 +22,16 @@ UA = {"User-Agent": "Mozilla/5.0 (cartera-datos; github actions)", "Accept": "ap
 status = {"startedAt": datetime.datetime.utcnow().isoformat(timespec="seconds") + "Z", "ok": [], "errors": [], "samples": {}}
 
 
-def get(url, tries=3, pause=1.0):
+T0 = time.time()
+BUDGET = 9 * 60  # segundos para el historial de BYMA; lo que no entra queda para la próxima corrida
+
+
+def get(url, tries=3, pause=1.0, timeout=30):
     last = None
     for i in range(tries):
         try:
             req = urllib.request.Request(url, headers=UA)
-            with urllib.request.urlopen(req, timeout=40) as r:
+            with urllib.request.urlopen(req, timeout=timeout) as r:
                 return json.loads(r.read().decode("utf-8"))
         except Exception as e:  # noqa
             last = e
@@ -121,14 +125,13 @@ for kind, syms in cfg.get("byma", {}).items():
         n0 = len(cur)
         if kind in HIST_KINDS:
             rows = None
-            for intento in range(3):
+            if time.time() - T0 < BUDGET:
                 try:
-                    rows = get(f"https://data912.com/historical/{kind}/{sym}")
+                    rows = get(f"https://data912.com/historical/{kind}/{sym}", tries=2, timeout=25)
                 except Exception as e:
                     rows = e
-                if isinstance(rows, list) and rows:
-                    break
-                time.sleep(3 * (intento + 1))
+            else:
+                rows = "sin tiempo en esta corrida"
             if isinstance(rows, list) and rows:
                 for r in rows:
                     d = norm_date(pick(r, "date", "fecha", "d"))
@@ -147,7 +150,7 @@ for kind, syms in cfg.get("byma", {}).items():
             status["errors"].append(f"live {sym}: no figura en los paneles de BYMA de data912")
         if cur:
             save(path, cur)
-        time.sleep(1.0)
+        time.sleep(0.7)
 
 # ---------- 3. EE.UU. (Yahoo Finance) ----------
 p1 = int(datetime.datetime.strptime(DESDE, "%Y-%m-%d").timestamp())
