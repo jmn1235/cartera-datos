@@ -193,7 +193,8 @@ for sym in cfg.get("usa", []):
     cur = load(path, {})
     try:
         n0 = len(cur)
-        cur = yahoo(sym, P1, P2, total=True)  # se reescribe entero: el ajuste por dividendos cambia hacia atrás
+        tot = sym in ("SPY", "ACWI", "AGG", "GLD")  # benchmarks: rendimiento total (dividendos reinvertidos); el resto, cierre real
+        cur = yahoo(sym, P1, P2, total=tot) if tot else dict(cur, **yahoo(sym, P1, P2))
         save(path, cur)
         status["ok"].append(f"us {sym}: {len(cur)} (+{len(cur) - n0})")
     except Exception as e:
