@@ -14,6 +14,8 @@ Uso:
   --out       carpeta de salida: docs/<colección>__<id>.json, writes_<n>.json (lotes listos para batch),
               job_patch.json (lo que va en el pedido al cerrarlo) y resumen.txt
 """
+import warnings
+warnings.filterwarnings('ignore', category=DeprecationWarning)
 import argparse, datetime, json, pathlib, statistics, sys, urllib.request
 
 RAW = "https://raw.githubusercontent.com/jmn1235/cartera-datos/main/data/"
@@ -231,12 +233,15 @@ def main():
             if old.get("src") == "manual":
                 continue
             rec = dict(old)
-            if d in mep and (not old.get("mep") or old.get("src") != "argentinadatos"):
+            # solo completa: no pisa valores ya guardados (las operaciones y los cálculos previos no cambian)
+            if d in mep and not old.get("mep"):
                 rec["mep"] = float(mep[d])
-            if d in ccl and (not old.get("ccl") or old.get("src") != "argentinadatos"):
+            if d in ccl and not old.get("ccl"):
                 rec["ccl"] = float(ccl[d])
             if rec != old:
-                rec["src"] = "argentinadatos"; cur[d] = rec; n += 1
+                if not old:
+                    rec["src"] = "argentinadatos"
+                cur[d] = rec; n += 1
         if n:
             fx_added += n
             put("fx", doc, {"series": cur})
