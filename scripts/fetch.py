@@ -113,16 +113,20 @@ if any(last["byma"].values()):
     save(D / "last.json", last)
 
 
-def yahoo(sym, p1, p2):
+def yahoo(sym, p1, p2, total=False):
+    # total=True: cierre ajustado por dividendos (rendimiento total, para benchmarks y acciones de EE.UU.)
     j = get(f"https://query1.finance.yahoo.com/v8/finance/chart/{sym}?period1={p1}&period2={p2}&interval=1d&events=split", tries=2, timeout=25)
     res = (j.get("chart") or {}).get("result") or []
     if not res:
         raise RuntimeError("sin datos: " + str((j.get("chart") or {}).get("error"))[:200])
     ts = res[0].get("timestamp") or []
-    closes = ((res[0].get("indicators") or {}).get("quote") or [{}])[0].get("close") or []
+    ind = res[0].get("indicators") or {}
+    closes = (ind.get("quote") or [{}])[0].get("close") or []
+    adj = (ind.get("adjclose") or [{}])[0].get("adjclose") if total else None
     tz = (res[0].get("meta") or {}).get("gmtoffset") or -18000
     out = {}
-    for t, c in zip(ts, closes):
+    for i, t in enumerate(ts):
+        c = adj[i] if adj and i < len(adj) and adj[i] is not None else (closes[i] if i < len(closes) else None)
         if c is None:
             continue
         out[datetime.datetime.utcfromtimestamp(t + tz).strftime("%Y-%m-%d")] = round(float(c), 4)
@@ -189,7 +193,7 @@ for sym in cfg.get("usa", []):
     cur = load(path, {})
     try:
         n0 = len(cur)
-        cur.update(yahoo(sym, P1, P2))
+        cur = yahoo(sym, P1, P2, total=True)  # se reescribe entero: el ajuste por dividendos cambia hacia atrás
         save(path, cur)
         status["ok"].append(f"us {sym}: {len(cur)} (+{len(cur) - n0})")
     except Exception as e:
