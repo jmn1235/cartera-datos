@@ -187,6 +187,30 @@ for kind, syms in cfg.get("byma", {}).items():
             save(path, cur)
         time.sleep(0.7)
 
+# ---------- 2b. Alias: tickers anteriores del mismo activo ----------
+for sym, olds in (cfg.get("alias") or {}).items():
+    path = D / "hist" / f"{sym}.json"
+    cur = load(path, {})
+    n0 = len(cur)
+    for old in olds:
+        try:
+            rows = get(f"https://data912.com/historical/cedears/{old}", tries=2, timeout=25)
+            got = {norm_date(pick(r, "date")): num(pick(r, "c", "close")) for r in rows} if isinstance(rows, list) else {}
+        except Exception:
+            got = {}
+        if not got:
+            try:
+                got = yahoo(old + ".BA", P1, P2)
+            except Exception as e:
+                status["errors"].append(f"alias {old}: {str(e)[:120]}")
+        first_new = min(cur) if cur else "9999"
+        for d, c in got.items():
+            if d and c and c > 0 and d >= DESDE and d < first_new:
+                cur[d] = c
+    if cur:
+        save(path, cur)
+    status["ok"].append(f"alias {sym}: +{len(cur) - n0} ruedas de {', '.join(olds)}")
+
 # ---------- 3. EE.UU. (Yahoo Finance) ----------
 for sym in cfg.get("usa", []):
     path = D / "us" / f"{sym}.json"

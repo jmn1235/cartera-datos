@@ -63,5 +63,11 @@
     "DRAM",
     "NASA",
     "ALTM"
-  ]
+  ],
+  "alias": {
+    "B": [
+      "GOLD"
+    ]
+  },
+  "_nota_alias": "alias: tickers anteriores del mismo activo (Barrick cotizó como GOLD hasta 2025). Su historial completa las fechas que el ticker actual no tiene."
 }
