@@ -179,9 +179,20 @@ def main():
                 replaced += 1
             else:
                 added += 1
-            cur[d] = {"p": p, "src": src_label}
+            ne = {"p": p, "src": src_label}
+            if old and old.get("k") and src_label == SRC:  # data912 no ajusta por cambio de ratio: se conserva el ajuste que ya había
+                ne["k"] = old["k"]
+            cur[d] = ne
         ds = sorted(d for d in cur if isinstance(cur[d], dict) and cur[d].get("p"))
         lastd = ds[-1] if ds else None
+        # saltos bruscos dentro del historial (posible cambio de ratio sin ajustar)
+        for x0, x1 in zip(ds, ds[1:]):
+            if x1 < start:
+                continue
+            a0 = float(cur[x0]["p"]) / float(cur[x0].get("k") or 1); a1 = float(cur[x1]["p"]) / float(cur[x1].get("k") or 1)
+            if a0 > 0 and (a1 / a0 > 2.5 or a1 / a0 < 0.4):
+                notes.append(f"{aid}: salto de {100 * (a1 / a0 - 1):+.0f}% entre {x0} y {x1} (¿cambio de ratio?).")
+                break
         st = "ok"
         note = ""
         if not lastd or days(lastd, TODAY) > 5:
